@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Qualidade Editorial GGE</title>
+  <meta name="description" content="Dashboard de Controle de Qualidade Editorial — Sistema GGE de Ensino">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script>
+    // Aplica o tema salvo antes do primeiro desenho, evitando o flash do tema claro.
+    try { if (localStorage.getItem('gge-tema') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+  </script>
+</head>
+<body class="abertura-ativa">
+  <!-- Abertura institucional: no HTML para aparecer no primeiro desenho, antes do JS e da API.
+       js/app.js remove a camada após ~2,8 s, uma vez por carregamento da página. -->
+  <div class="abertura" id="abertura" aria-hidden="true">
+    <div class="abertura-conteudo">
+      <span class="abertura-logo"><img src="assets/logo-sgge.png" alt="" width="147" height="62"></span>
+      <span class="abertura-traco"></span>
+      <span class="abertura-sigla">SGGE-PCP</span>
+      <h1 class="abertura-titulo">Controle de Qualidade Editorial</h1>
+      <p class="abertura-mensagem">Melhoria contínua. Excelência operacional.</p>
+      <span class="abertura-progresso"><span id="abertura-barra"></span></span>
+      <div class="abertura-carregamento">
+        <span class="abertura-percentual" id="abertura-percentual">0%</span>
+        <span class="abertura-status">Inicializando sistema...</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay" aria-hidden="true"></div>
+
+  <!-- Menu lateral -->
+  <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
+    <div class="marca">
+      <span class="marca-logo"><img src="assets/logo-sgge.png" alt="GGE — Sistema de Ensino" width="147" height="62"></span>
+      <span class="marca-logo-compacta"><img src="assets/logo-sgge-mini.png" alt="GGE" width="40" height="40"></span>
+      <span class="marca-modulo">Controle de Qualidade Editorial</span>
+    </div>
+    <nav>
+      <a class="nav-link" href="#visao-geral" data-secao="visao-geral" data-rotulo="Visão Geral"><span class="nav-icone"><i data-lucide="layout-dashboard"></i></span><span class="nav-texto">Visão Geral</span><span class="nav-seta"><i data-lucide="chevron-right"></i></span></a>
+      <a class="nav-link" href="#editorial" data-secao="editorial" data-rotulo="Análise Editorial"><span class="nav-icone"><i data-lucide="pen-line"></i></span><span class="nav-texto">Análise Editorial</span><span class="nav-seta"><i data-lucide="chevron-right"></i></span></a>
+      <a class="nav-link" href="#diagramacao" data-secao="diagramacao" data-rotulo="Análise de Diagramação"><span class="nav-icone"><i data-lucide="layout-template"></i></span><span class="nav-texto">Análise de Diagramação</span><span class="nav-seta"><i data-lucide="chevron-right"></i></span></a>
+      <a class="nav-link" href="#relatorios" data-secao="relatorios" data-rotulo="Relatórios"><span class="nav-icone"><i data-lucide="file-text"></i></span><span class="nav-texto">Relatórios</span><span class="nav-seta nav-restrito" title="Acesso restrito à gestão"><i data-lucide="lock"></i></span></a>
+    </nav>
+    <div class="sidebar-rodape">
+      <div class="sidebar-fonte">
+        <span>SGGE-PCP</span>
+      </div>
+      <button type="button" class="btn-recolher" id="btn-recolher" aria-controls="sidebar" aria-expanded="true" aria-label="Recolher menu" title="Recolher menu">
+        <i data-lucide="chevron-left"></i>
+      </button>
+    </div>
+  </aside>
+
+  <div class="principal">
+    <!-- Cabeçalho -->
+    <header class="topo">
+      <button type="button" class="btn-icone btn-menu" id="btn-menu" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+        <i data-lucide="menu"></i>
+      </button>
+      <div class="topo-titulo">
+        <h1 id="titulo-secao">Visão Geral</h1>
+        <p class="topo-sistema">Sistema GGE de Ensino · Controle de Qualidade Editorial</p>
+      </div>
+      <span class="selo-demo" id="selo-demo" hidden title="Os registros exibidos são fictícios"><i data-lucide="flask-conical"></i>Dados demonstrativos</span>
+      <div class="topo-acoes">
+        <span class="selo-fonte" id="selo-fonte" hidden><i data-lucide="database"></i><span></span></span>
+        <button type="button" class="btn-icone btn-tema" id="btn-tema" aria-label="Ativar modo escuro" title="Ativar modo escuro"><i data-lucide="moon" class="icone-lua"></i><i data-lucide="sun" class="icone-sol"></i></button>
+        <button type="button" class="btn-icone" id="btn-atualizar" aria-label="Recarregar dados da planilha" title="Recarregar dados da planilha"><i data-lucide="refresh-cw"></i></button>
+        <button type="button" class="btn btn-secundario btn-filtros" id="btn-filtros" aria-expanded="false" aria-controls="drawer-filtros">
+          <i data-lucide="filter"></i><span id="btn-filtros-rotulo">Filtros</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="conteudo">
+      <div class="aviso aviso-alerta" id="alerta-qualidade" hidden role="status">
+        <i data-lucide="shield-alert"></i><span></span>
+        <button type="button" class="btn-link" id="btn-ver-qualidade" aria-expanded="false" aria-controls="alerta-detalhes">Ver detalhes</button>
+        <ul class="lista-qualidade" id="alerta-detalhes" hidden></ul>
+      </div>
+      <div class="aviso aviso-erro" id="erro-carga" hidden role="alert"><i data-lucide="circle-x"></i><span></span></div>
+      <div class="carregando" id="carregando"><div class="spinner"></div>Carregando registros…</div>
+
+      <!-- Visão Geral -->
+      <section class="secao" id="secao-visao-geral">
+        <div class="kpis kpis-cards" id="kpis-geral"></div>
+        <div class="grade">
+          <article class="painel"><header><h2>Distribuição por tipo</h2><p>Apontamentos por processo</p></header>
+            <div class="chart-box"><canvas id="ch-tipo" role="img" aria-label="Gráfico de rosca com a distribuição dos apontamentos por processo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel span-2"><header><h2>Apontamentos por módulo</h2><p>Quantidade de apontamentos identificados em cada módulo.</p></header>
+            <div class="chart-box"><canvas id="ch-area-modulo" role="img" aria-label="Gráfico de área com o total de apontamentos por módulo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <div class="linha-dupla span-3">
+            <article class="painel"><header><h2>Por coleção</h2><p>Quantidade de apontamentos registrados por coleção.</p></header>
+              <div class="total-destaque"><span>Total geral de apontamentos</span><strong id="total-colecao">0</strong></div>
+              <div class="chart-box chart-colecao"><canvas id="ch-colecao" role="img" aria-label="Gráfico de colunas com a quantidade de apontamentos por coleção"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+            <article class="painel"><header><h2>Ranking de disciplinas por apontamentos</h2><p>10 disciplinas com mais apontamentos</p></header>
+              <div class="chart-box alto"><canvas id="ch-disciplinas" role="img" aria-label="Gráfico de barras com as 10 disciplinas com mais apontamentos"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          </div>
+          <article class="painel span-3"><header><h2>Por ano escolar</h2><p>Comparação entre anos e séries</p></header>
+            <div class="chart-box"><canvas id="ch-ano" role="img" aria-label="Gráfico de colunas com os apontamentos por ano escolar"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel span-3"><header><h2>Editorial x Diagramação por disciplina</h2><p>Composição dos apontamentos em cada disciplina</p></header>
+            <div class="chart-box alto"><canvas id="ch-disc-cat" role="img" aria-label="Gráfico de barras empilhadas com apontamentos editoriais e de diagramação por disciplina"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+        </div>
+        <article class="painel" id="apontamentos-geral" data-tabela="geral" data-titulo="Apontamentos registrados" data-compacta></article>
+      </section>
+
+      <!-- Análise Editorial -->
+      <section class="secao" id="secao-editorial" hidden>
+        <div class="kpis kpis-2" id="kpis-ed"></div>
+        <div class="grade">
+          <article class="painel span-3"><header><h2>Apontamentos por módulo</h2><p>Quantidade de apontamentos editoriais identificados em cada módulo.</p></header>
+            <div class="chart-box"><canvas id="ch-ed-area-modulo" role="img" aria-label="Gráfico de área com os apontamentos editoriais por módulo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por disciplina</h2><p>10 mais frequentes</p></header>
+            <div class="chart-box alto"><canvas id="ch-ed-disciplina" role="img" aria-label="Gráfico de barras com os apontamentos editoriais por disciplina"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por módulo</h2><p>Comparação entre módulos</p></header>
+            <div class="chart-box alto"><canvas id="ch-ed-modulo" role="img" aria-label="Gráfico de colunas com os apontamentos editoriais por módulo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por coleção</h2><p>Comparação entre coleções</p></header>
+            <div class="chart-box alto"><canvas id="ch-ed-colecao" role="img" aria-label="Gráfico de barras com os apontamentos editoriais por coleção"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel span-3"><header><h2>Por ano escolar</h2><p>Comparação entre anos e séries</p></header>
+            <div class="chart-box"><canvas id="ch-ed-ano" role="img" aria-label="Gráfico de colunas com os apontamentos editoriais por ano escolar"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+        </div>
+        <article class="painel" id="apontamentos-editorial" data-tabela="ed" data-titulo="Apontamentos editoriais" data-compacta></article>
+      </section>
+
+      <!-- Análise de Diagramação -->
+      <section class="secao" id="secao-diagramacao" hidden>
+        <div class="kpis kpis-2" id="kpis-dg"></div>
+        <div class="grade">
+          <article class="painel span-3"><header><h2>Apontamentos por módulo</h2><p>Quantidade de apontamentos de diagramação identificados em cada módulo.</p></header>
+            <div class="chart-box"><canvas id="ch-dg-area-modulo" role="img" aria-label="Gráfico de área com os apontamentos de diagramação por módulo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por disciplina</h2><p>10 mais frequentes</p></header>
+            <div class="chart-box alto"><canvas id="ch-dg-disciplina" role="img" aria-label="Gráfico de barras com os apontamentos de diagramação por disciplina"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por módulo</h2><p>Comparação entre módulos</p></header>
+            <div class="chart-box alto"><canvas id="ch-dg-modulo" role="img" aria-label="Gráfico de colunas com os apontamentos de diagramação por módulo"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel"><header><h2>Por coleção</h2><p>Comparação entre coleções</p></header>
+            <div class="chart-box alto"><canvas id="ch-dg-colecao" role="img" aria-label="Gráfico de barras com os apontamentos de diagramação por coleção"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+          <article class="painel span-3"><header><h2>Por ano escolar</h2><p>Comparação entre anos e séries</p></header>
+            <div class="chart-box"><canvas id="ch-dg-ano" role="img" aria-label="Gráfico de colunas com os apontamentos de diagramação por ano escolar"></canvas><p class="chart-vazio" hidden>Sem dados para os filtros atuais.</p></div></article>
+        </div>
+        <article class="painel" id="apontamentos-diagramacao" data-tabela="dg" data-titulo="Apontamentos de diagramação" data-compacta></article>
+      </section>
+
+      <!-- Relatórios -->
+      <section class="secao" id="secao-relatorios" hidden>
+        <!-- Gerador de relatório em PDF (js/relatorios.js). Usa todos os registros da BASE_ERROS,
+             independentemente dos filtros globais; os parâmetros abaixo definem o recorte. -->
+        <article class="painel gerador" id="gerador-relatorio">
+          <header class="gerador-topo">
+            <span class="gerador-icone"><i data-lucide="file-down"></i></span>
+            <div>
+              <h2>Novo relatório</h2>
+              <p>Preencha os parâmetros de geração.</p>
+            </div>
+          </header>
+          <form class="gerador-form" id="form-relatorio" novalidate>
+            <fieldset class="grupo-check" data-rel="colecao">
+              <legend class="grupo-check-titulo">Coleção</legend>
+              <div class="grupo-check-lista">
+                <label class="opcao-check"><input type="checkbox" value="__todas" checked><span class="opcao-check-texto">Todas</span></label>
+                <label class="opcao-check"><input type="checkbox" value="BASIS"><span class="opcao-check-texto">BASIS</span></label>
+                <label class="opcao-check"><input type="checkbox" value="LUDUS"><span class="opcao-check-texto">LUDUS</span></label>
+                <label class="opcao-check"><input type="checkbox" value="MUNDUS"><span class="opcao-check-texto">MUNDUS</span></label>
+                <label class="opcao-check"><input type="checkbox" value="EXTRA"><span class="opcao-check-texto">EXTRA</span></label>
+              </div>
+            </fieldset>
+            <fieldset class="grupo-check" data-rel="modulo">
+              <legend class="grupo-check-titulo">Módulo</legend>
+              <div class="grupo-check-lista">
+                <label class="opcao-check"><input type="checkbox" value="__todas" checked><span class="opcao-check-texto">Todos</span></label>
+                <label class="opcao-check"><input type="checkbox" value="M1"><span class="opcao-check-texto">Módulo 1</span></label>
+                <label class="opcao-check"><input type="checkbox" value="M2"><span class="opcao-check-texto">Módulo 2</span></label>
+                <label class="opcao-check"><input type="checkbox" value="M3"><span class="opcao-check-texto">Módulo 3</span></label>
+                <label class="opcao-check"><input type="checkbox" value="M4"><span class="opcao-check-texto">Módulo 4</span></label>
+                <label class="opcao-check"><input type="checkbox" value="ANUAL"><span class="opcao-check-texto">Anual</span></label>
+              </div>
+            </fieldset>
+            <fieldset class="grupo-check" data-rel="processo">
+              <legend class="grupo-check-titulo">Apontamentos</legend>
+              <div class="grupo-check-lista">
+                <label class="opcao-check"><input type="checkbox" value="Editorial" checked><span class="opcao-check-texto">Editorial</span></label>
+                <label class="opcao-check"><input type="checkbox" value="Diagramação" checked><span class="opcao-check-texto">Diagramação</span></label>
+              </div>
+            </fieldset>
+            <fieldset class="grupo-check" data-rel="conteudo">
+              <legend class="grupo-check-titulo">Conteúdo do relatório</legend>
+              <div class="grupo-check-lista">
+                <label class="opcao-check"><input type="checkbox" value="resumo" checked><span class="opcao-check-texto">Resumo de indicadores</span></label>
+                <label class="opcao-check"><input type="checkbox" value="graficos" checked><span class="opcao-check-texto">Gráficos analíticos</span></label>
+                <label class="opcao-check"><input type="checkbox" value="tabela" checked><span class="opcao-check-texto">Tabela de apontamentos</span></label>
+              </div>
+            </fieldset>
+          </form>
+          <div class="gerador-status" id="rel-status" role="status" aria-live="polite"></div>
+          <footer class="gerador-acoes">
+            <button type="button" class="btn btn-secundario" id="rel-limpar"><i data-lucide="rotate-ccw"></i>Limpar seleção</button>
+            <button type="button" class="btn btn-primario" id="rel-gerar"><i data-lucide="file-down"></i>Gerar PDF</button>
+          </footer>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <!-- Drawer de filtros globais -->
+  <div class="drawer-fundo" id="drawer-fundo" aria-hidden="true"></div>
+  <aside class="drawer" id="drawer-filtros" role="dialog" aria-modal="true" aria-labelledby="drawer-titulo" aria-hidden="true" inert>
+    <header class="drawer-topo">
+      <div>
+        <h2 id="drawer-titulo">Filtros</h2>
+        <p>Refine os dados exibidos no painel</p>
+      </div>
+      <button type="button" class="btn-icone" id="drawer-fechar" aria-label="Fechar filtros"><i data-lucide="x"></i></button>
+    </header>
+    <div class="drawer-corpo">
+      <p class="contador" id="contador-filtro"></p>
+      <!-- Grupos de checkboxes montados por filtros.js a partir dos dados da API. -->
+      <fieldset class="grupo-check" id="f-colecao"></fieldset>
+      <fieldset class="grupo-check" id="f-modulo"></fieldset>
+      <fieldset class="grupo-check" id="f-_categoria"></fieldset>
+      <fieldset class="grupo-check" id="f-ano"></fieldset>
+      <fieldset class="grupo-check" id="f-disciplina"></fieldset>
+    </div>
+    <footer class="drawer-rodape">
+      <button type="button" class="btn btn-secundario" id="drawer-cancelar">Fechar</button>
+      <button type="button" class="btn btn-secundario" id="btn-limpar"><i data-lucide="filter-x"></i>Limpar filtros</button>
+      <button type="button" class="btn btn-primario" id="btn-aplicar"><i data-lucide="check"></i>Aplicar filtros</button>
+    </footer>
+  </aside>
+
+  <!-- Detalhe da ocorrência -->
+  <dialog class="detalhe" id="detalhe" aria-labelledby="detalhe-titulo">
+    <header>
+      <h2 id="detalhe-titulo">Ocorrência</h2>
+      <button type="button" class="btn-icone" id="detalhe-fechar" aria-label="Fechar"><i data-lucide="x"></i></button>
+    </header>
+    <div id="detalhe-corpo"></div>
+  </dialog>
+
+  <!-- Acesso à seção Relatórios: barreira de navegação (frontend), não autenticação segura. -->
+  <dialog class="acesso" id="acesso-gestao" aria-labelledby="acesso-titulo" aria-describedby="acesso-descricao">
+    <form id="acesso-form" novalidate>
+      <span class="acesso-icone"><i data-lucide="lock"></i></span>
+      <h2 id="acesso-titulo">Acesso à gestão</h2>
+      <p id="acesso-descricao">Esta seção é destinada à equipe de gestão. Informe a senha para continuar.</p>
+      <label class="acesso-campo">
+        <span>Senha</span>
+        <span class="acesso-senha">
+          <input type="password" id="acesso-senha" autocomplete="current-password" required aria-describedby="acesso-erro">
+          <button type="button" class="btn-icone" id="acesso-mostrar" aria-label="Mostrar senha" aria-pressed="false"><i data-lucide="eye"></i></button>
+        </span>
+      </label>
+      <p class="acesso-erro" id="acesso-erro" role="alert" hidden>Senha incorreta. Tente novamente.</p>
+      <div class="acesso-acoes">
+        <button type="button" class="btn btn-secundario" id="acesso-cancelar">Cancelar</button>
+        <button type="submit" class="btn btn-primario" id="acesso-entrar">Acessar relatórios</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.454.0/dist/umd/lucide.min.js"></script>
+  <script src="js/mock-data.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/indicadores.js"></script>
+  <script src="js/filtros.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/relatorios.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
