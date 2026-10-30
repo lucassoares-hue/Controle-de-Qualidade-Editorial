@@ -400,7 +400,7 @@
 
   function montarPdf(p, registros) {
     const { jsPDF } = window.jspdf;
-    const { fmtNum, fmtPct, fmtData } = GGE.util;
+    const { fmtNum, fmtPct, fmtData, urlSegura } = GGE.util;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
     const W = doc.internal.pageSize.getWidth();   // 210
     const H = doc.internal.pageSize.getHeight();  // 297
@@ -559,6 +559,12 @@
         .filter(([proc]) => p.processos.has(proc))
         .map(([proc, cor]) => ({ proc, cor, linhas: ordenados.filter((r) => processos(r).includes(proc)) }));
 
+      // A URL segue junto da célula: o link é criado na própria linha, em qualquer página da tabela.
+      const celulaEvidencia = (r) => {
+        const url = urlSegura(r.evidencia);
+        return url ? { content: 'Visualizar', url, styles: { textColor: COR.azul, fontStyle: 'bold' } } : '—';
+      };
+
       // Subtítulo + cabeçalho + ao menos uma linha precisam caber; senão o grupo começa na página seguinte.
       const ESPACO_MIN_GRUPO = 34;
       grupos.forEach((g, i) => {
@@ -575,17 +581,20 @@
         doc.autoTable({
           startY: y,
           margin: { left: M, right: M, top: TOPO, bottom: H - BASE },
-          head: [['Módulo', 'Ano Escolar', 'Disciplina', 'Coleção', 'Descrição do apontamento']],
-          body: g.linhas.map((r) => [r.modulo, r.ano, r.disciplina, r.colecao, r.descricao || '—']),
+          head: [['Módulo', 'Ano Escolar', 'Disciplina', 'Coleção', 'Descrição do apontamento', { content: 'Evidência', styles: { halign: 'center' } }]],
+          body: g.linhas.map((r) => [r.modulo, r.ano, r.disciplina, r.colecao, r.descricao || '—', celulaEvidencia(r)]),
           theme: 'grid',
           styles: { font: 'helvetica', fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 2.4, right: 2.4 }, overflow: 'linebreak', valign: 'top', textColor: COR.texto, lineColor: COR.borda, lineWidth: 0.2 },
           headStyles: { fillColor: COR.marinho, textColor: 255, fontStyle: 'bold', fontSize: 8, valign: 'middle', lineColor: COR.marinho },
           bodyStyles: { fillColor: COR.branco },
           alternateRowStyles: { fillColor: COR.fundo },
-          // Larguras fixas para os campos curtos; a descrição ocupa o restante (≈ 90 mm em A4).
-          columnStyles: { 0: { cellWidth: 16 }, 1: { cellWidth: 20 }, 2: { cellWidth: 34 }, 3: { cellWidth: 18 }, 4: { cellWidth: 'auto' } },
+          // Larguras fixas para os campos curtos; a descrição ocupa o restante (≈ 76 mm em A4).
+          columnStyles: { 0: { cellWidth: 16 }, 1: { cellWidth: 20 }, 2: { cellWidth: 30 }, 3: { cellWidth: 18 }, 4: { cellWidth: 'auto' }, 5: { cellWidth: 18, halign: 'center' } },
           showHead: 'everyPage',
-          rowPageBreak: 'avoid'
+          rowPageBreak: 'avoid',
+          didDrawCell: ({ section, cell }) => {
+            if (section === 'body' && cell.raw?.url) doc.link(cell.x, cell.y, cell.width, cell.height, { url: cell.raw.url });
+          }
         });
         y = doc.lastAutoTable.finalY + 12;
       });
