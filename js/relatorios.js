@@ -232,7 +232,7 @@
     return {
       total, ed, dg,
       comb: registros.filter((r) => r._categoria === C.COMBINADO).length,
-      mod: I.totaisPorModulo(registros),
+      mod: I.modulosPresentes(registros),
       col: I.agrupar(registros, 'colecao', { porValor: true }),
       disc: I.agrupar(registros, 'disciplina', { porValor: true, limite: 10 })
     };
@@ -248,12 +248,12 @@
         data: { labels: a.mod.rotulos, datasets: [{ data: a.mod.valores, borderColor: HEX.azul, backgroundColor: 'rgba(37,99,235,.12)', fill: true, borderWidth: 4, pointRadius: 8, pointBackgroundColor: '#fff', pointBorderColor: HEX.azul, pointBorderWidth: 4, cubicInterpolationMode: 'monotone' }] },
         plugins: [rotulosPdf],
         // Folga lateral e superior: os rótulos "n (p%)" das pontas não podem ser cortados.
-        options: { layout: { padding: { top: 50, right: 90, left: 70, bottom: 4 } }, plugins: { rotulosPdf: { percentual: true, fonte: rotulo } }, scales: { y: eixo, x: { grid: { display: false } } } }
+        options: { layout: { padding: { top: 50, right: 60, left: 20, bottom: 4 } }, plugins: { rotulosPdf: { percentual: true, fonte: Math.round(PX_MM * 2.6) } }, scales: { y: eixo, x: { grid: { display: false }, offset: a.mod.rotulos.length === 1 } } }
       },
       processo: {
         type: 'doughnut',
         data: { labels: ['Editorial', 'Diagramação'], datasets: [{ data: [a.ed, a.dg], backgroundColor: [HEX.azul, HEX.diagramacao], borderColor: '#fff', borderWidth: 6 }] },
-        options: { cutout: '64%', layout: { padding: 16 } }
+        options: { cutout: '64%', layout: { padding: 30 } }
       },
       colecao: {
         type: 'bar',
@@ -436,34 +436,39 @@
 
       if (p.conteudo.has('graficos')) {
         // Grade calculada para caber no espaço restante desta página:
-        // linha 1 = módulo (largura total); linha 2 = processo + coleção; linha 3 = disciplina (largura total).
+        // duas colunas e duas linhas, com todos os gráficos no mesmo tamanho.
         const gap = 5; const tituloH = 9; const pad = 2.5;
-        const disponivel = BASE - y - 2 * gap;
-        const hLinha = [0.30, 0.34, 0.36].map((f) => disponivel * f);
-        const largTotal = W - 2 * M;
-        const meia = (largTotal - gap) / 2;
+        const h = (BASE - y - gap) / 2;
+        const meia = (W - 2 * M - gap) / 2;
         const cfg = configsGraficos(a);
         const blocos = [
-          { chave: 'modulo', titulo: 'Apontamentos por módulo', x: M, w: largTotal, linha: 0 },
-          { chave: 'processo', titulo: 'Distribuição por processo', x: M, w: meia, linha: 1, legenda: true },
-          { chave: 'colecao', titulo: 'Apontamentos por coleção', x: M + meia + gap, w: meia, linha: 1 },
-          { chave: 'disciplina', titulo: 'Apontamentos por disciplina (10 mais frequentes)', x: M, w: largTotal, linha: 2 }
+          { chave: 'modulo', titulo: 'Apontamentos por módulo', x: M, linha: 0 },
+          { chave: 'processo', titulo: 'Distribuição por processo', x: M + meia + gap, linha: 0, legenda: true },
+          { chave: 'colecao', titulo: 'Apontamentos por coleção', x: M, linha: 1 },
+          { chave: 'disciplina', titulo: 'Apontamentos por disciplina (10 mais frequentes)', x: M + meia + gap, linha: 1 }
         ];
-        const yLinha = [y, y + hLinha[0] + gap, y + hLinha[0] + hLinha[1] + 2 * gap];
         blocos.forEach((c, i) => {
-          const yy = yLinha[c.linha]; const h = hLinha[c.linha];
+          const yy = y + c.linha * (h + gap);
           doc.setFillColor(...COR.branco); doc.setDrawColor(...COR.borda); doc.setLineWidth(0.25);
-          doc.roundedRect(c.x, yy, c.w, h, 2.5, 2.5, 'FD');
+          doc.roundedRect(c.x, yy, meia, h, 2.5, 2.5, 'FD');
           texto(c.titulo, c.x + 5, yy + 6.5, { tam: 9.5, estilo: 'bold', cor: COR.marinho });
           const legendaH = c.legenda ? 8 : 0;
-          const iw = c.w - 2 * pad; const ih = h - tituloH - pad - legendaH;
+          const iw = meia - 2 * pad; const ih = h - tituloH - pad - legendaH;
           doc.addImage(imagemGrafico(cfg[c.chave], iw, ih), 'PNG', c.x + pad, yy + tituloH, iw, ih, `grafico-${i}`, 'FAST');
           if (c.legenda) {
             const itens = [[`Editorial: ${fmtNum(a.ed)} (${fmtPct(a.total ? (a.ed / a.total) * 100 : 0)})`, COR.azul], [`Diagramação: ${fmtNum(a.dg)} (${fmtPct(a.total ? (a.dg / a.total) * 100 : 0)})`, COR.diagramacao]];
+            // Mede os textos: uma linha centralizada se couber; senão, uma legenda abaixo da outra.
+            const tam = 8.5; const raio = 1.4; const recuo = 3.2; const entre = 6; const margem = 5;
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(tam);
+            const larguras = itens.map(([t]) => raio + recuo + doc.getTextWidth(t));
+            const total = larguras[0] + larguras[1] + entre;
+            const emLinha = total <= meia - 2 * margem;
+            const inicio = c.x + (meia - (emLinha ? total : Math.max(...larguras))) / 2 + raio;
             itens.forEach(([t, cor], k) => {
-              const lx = c.x + 7 + k * (c.w / 2);
-              doc.setFillColor(...cor); doc.circle(lx, yy + h - 5.2, 1.4, 'F');
-              texto(t, lx + 3.2, yy + h - 4.1, { tam: 8.5 });
+              const lx = emLinha && k ? inicio + larguras[0] + entre : inicio;
+              const base = yy + h - (emLinha ? 4.1 : 6.6 - 4 * k);
+              doc.setFillColor(...cor); doc.circle(lx, base - 1.1, raio, 'F');
+              texto(t, lx + recuo, base, { tam });
             });
           }
         });
