@@ -198,6 +198,63 @@
   };
 
   /**
+   * Rótulos externos "quantidade (percentual)" com conector na cor da fatia, no padrão
+   * do gráfico "Distribuição por tipo" do dashboard. A folga lateral vem de folgaRosca().
+   */
+  const ROSCA_COTOVELO = 14;
+  const ROSCA_TRECHO = 16;
+  const rotuloRosca = (valor, total) => `${GGE.util.fmtNum(valor)} (${GGE.util.fmtPct((valor / total) * 100)})`;
+  const rotulosRoscaPdf = {
+    id: 'rotulosRoscaPdf',
+    afterDatasetsDraw(chart, _a, op) {
+      const { ctx, chartArea } = chart;
+      const ds = chart.data.datasets[0];
+      const total = ds.data.reduce((s, n) => s + n, 0);
+      if (!total) return;
+      const altura = op.fonte + 10;
+      ctx.save();
+      ctx.font = `600 ${op.fonte}px Inter, Arial, sans-serif`;
+      const itens = [];
+      chart.getDatasetMeta(0).data.forEach((arco, i) => {
+        if (!ds.data[i]) return;
+        const { x: cx, y: cy, startAngle, endAngle, outerRadius } = arco.getProps(['x', 'y', 'startAngle', 'endAngle', 'outerRadius'], true);
+        const ang = (startAngle + endAngle) / 2;
+        const cos = Math.cos(ang); const sin = Math.sin(ang);
+        const raio = outerRadius + ROSCA_COTOVELO;
+        itens.push({
+          cor: ds.backgroundColor[i], texto: rotuloRosca(ds.data[i], total), direita: cos >= 0,
+          inicio: { x: cx + cos * (outerRadius + 3), y: cy + sin * (outerRadius + 3) },
+          cotoveloX: cx + cos * raio, y: cy + sin * raio
+        });
+      });
+      // Reposiciona na vertical para não sobrepor rótulos nem sair da área do gráfico.
+      [true, false].forEach((lado) => {
+        const grupo = itens.filter((it) => it.direita === lado).sort((a, b) => a.y - b.y);
+        grupo.forEach((it, k) => { it.y = Math.max(it.y, k ? grupo[k - 1].y + altura : chartArea.top + altura / 2); });
+        for (let k = grupo.length - 1; k >= 0; k--) grupo[k].y = Math.min(grupo[k].y, k < grupo.length - 1 ? grupo[k + 1].y - altura : chartArea.bottom - altura / 2);
+      });
+      itens.forEach((it) => {
+        const sinal = it.direita ? 1 : -1;
+        const xFim = it.cotoveloX + sinal * ROSCA_TRECHO;
+        ctx.strokeStyle = it.cor; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(it.inicio.x, it.inicio.y); ctx.lineTo(it.cotoveloX, it.y); ctx.lineTo(xFim, it.y); ctx.stroke();
+        ctx.fillStyle = '#101C35';
+        ctx.textAlign = it.direita ? 'left' : 'right'; ctx.textBaseline = 'middle';
+        ctx.fillText(it.texto, xFim + sinal * 6, it.y);
+      });
+      ctx.restore();
+    }
+  };
+
+  /** Folga lateral da rosca: acompanha a largura real do maior rótulo. */
+  function folgaRosca(valores, fonte) {
+    const total = valores.reduce((s, n) => s + n, 0) || 1;
+    const ctx = document.createElement('canvas').getContext('2d');
+    ctx.font = `600 ${fonte}px Inter, Arial, sans-serif`;
+    return Math.ceil(Math.max(...valores.map((v) => ctx.measureText(rotuloRosca(v, total)).width))) + ROSCA_COTOVELO + ROSCA_TRECHO + 12;
+  }
+
+  /**
    * Renderiza um gráfico Chart.js num canvas fora da tela, no tamanho exato da caixa
    * do PDF (larguraMm × alturaMm), e devolve a imagem PNG — sem distorção ao inserir.
    */
@@ -242,6 +299,7 @@
   function configsGraficos(a) {
     const eixo = { beginAtZero: true, ticks: { precision: 0 }, grid: { color: HEX.borda } };
     const rotulo = Math.round(PX_MM * 3.1);
+    const folga = folgaRosca([a.ed, a.dg], rotulo);
     return {
       modulo: {
         type: 'line',
@@ -253,7 +311,8 @@
       processo: {
         type: 'doughnut',
         data: { labels: ['Editorial', 'Diagramação'], datasets: [{ data: [a.ed, a.dg], backgroundColor: [HEX.azul, HEX.diagramacao], borderColor: '#fff', borderWidth: 6 }] },
-        options: { cutout: '64%', layout: { padding: 30 } }
+        plugins: [rotulosRoscaPdf],
+        options: { cutout: '64%', layout: { padding: { top: 34, bottom: 34, left: folga, right: folga } }, plugins: { rotulosRoscaPdf: { fonte: rotulo } } }
       },
       colecao: {
         type: 'bar',
@@ -383,12 +442,24 @@
 
     placaLogo(26, 30, 15);
 
-    doc.setFillColor(...COR.azul); doc.rect(26, 100, 1.6, 62, 'F');
+    doc.setFillColor(...COR.azul); doc.rect(26, 100, 1.6, 87, 'F');
     texto('SGGE-PCP', 34, 108, { tam: 11, estilo: 'bold', cor: COR.azulClaro, espaco: 1.2 });
     texto('CONTROLE DE', 34, 126, { tam: 30, estilo: 'bold', cor: COR.branco });
     texto('QUALIDADE EDITORIAL', 34, 140, { tam: 30, estilo: 'bold', cor: COR.branco });
     doc.setFillColor(...COR.azul); doc.rect(34, 148, 28, 1.4, 'F');
     texto('Relatório analítico de apontamentos', 34, 160, { tam: 14, cor: COR.capaTexto });
+
+    // Etiqueta da coleção do relatório, medida pelo texto e alinhada ao título.
+    const colecoes = p.colecoes ? [...p.colecoes] : null;
+    const rotuloColecao = 'COLEÇÕES';
+    const valorColecao = colecoes ? colecoes.join(' · ') : 'Todas';
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    const largValor = doc.getTextWidth(valorColecao);
+    doc.setFontSize(7.5);
+    const largEtiqueta = Math.max(largValor, doc.getTextWidth(rotuloColecao) + 1.2 * (rotuloColecao.length - 1)) + 12;
+    opacidade(0.1); doc.setFillColor(...COR.branco); doc.roundedRect(34, 169, largEtiqueta, 18, 2.5, 2.5, 'F'); opacidade(1);
+    texto(rotuloColecao, 40, 175.5, { tam: 7.5, estilo: 'bold', cor: COR.azulClaro, espaco: 1.2 });
+    texto(valorColecao, 40, 182.5, { tam: 13, estilo: 'bold', cor: COR.branco });
 
     opacidade(0.25); doc.setDrawColor(...COR.capaSuave); doc.setLineWidth(0.3); doc.line(26, H - 44, W - 26, H - 44); opacidade(1);
     texto('Sistema GGE de Ensino', 26, H - 34, { tam: 12, estilo: 'bold', cor: COR.branco });
@@ -456,19 +527,16 @@
           const iw = meia - 2 * pad; const ih = h - tituloH - pad - legendaH;
           doc.addImage(imagemGrafico(cfg[c.chave], iw, ih), 'PNG', c.x + pad, yy + tituloH, iw, ih, `grafico-${i}`, 'FAST');
           if (c.legenda) {
-            const itens = [[`Editorial: ${fmtNum(a.ed)} (${fmtPct(a.total ? (a.ed / a.total) * 100 : 0)})`, COR.azul], [`Diagramação: ${fmtNum(a.dg)} (${fmtPct(a.total ? (a.dg / a.total) * 100 : 0)})`, COR.diagramacao]];
-            // Mede os textos: uma linha centralizada se couber; senão, uma legenda abaixo da outra.
-            const tam = 8.5; const raio = 1.4; const recuo = 3.2; const entre = 6; const margem = 5;
+            // Legenda simples, centralizada pela largura real dos textos; os valores ficam nos rótulos.
+            const itens = [['Editorial', COR.azul], ['Diagramação', COR.diagramacao]];
+            const tam = 8.5; const raio = 1.4; const recuo = 3.2; const entre = 8;
             doc.setFont('helvetica', 'normal'); doc.setFontSize(tam);
             const larguras = itens.map(([t]) => raio + recuo + doc.getTextWidth(t));
-            const total = larguras[0] + larguras[1] + entre;
-            const emLinha = total <= meia - 2 * margem;
-            const inicio = c.x + (meia - (emLinha ? total : Math.max(...larguras))) / 2 + raio;
+            let lx = c.x + (meia - larguras[0] - larguras[1] - entre) / 2 + raio;
             itens.forEach(([t, cor], k) => {
-              const lx = emLinha && k ? inicio + larguras[0] + entre : inicio;
-              const base = yy + h - (emLinha ? 4.1 : 6.6 - 4 * k);
-              doc.setFillColor(...cor); doc.circle(lx, base - 1.1, raio, 'F');
-              texto(t, lx + recuo, base, { tam });
+              doc.setFillColor(...cor); doc.circle(lx, yy + h - 5.2, raio, 'F');
+              texto(t, lx + recuo, yy + h - 4.1, { tam });
+              lx += larguras[k] + entre;
             });
           }
         });
